@@ -2,6 +2,9 @@ service: monty-cloud-assessment
 
 frameworkVersion: '3'
 
+plugins:
+  - serverless-python-requirements
+
 provider:
   name: aws
   runtime: python3.9
@@ -9,24 +12,50 @@ provider:
   region: us-east-1
   layers:
       -  arn:aws:lambda:us-east-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:40
+  apiGateway:
+    binaryMediaTypes:
+      - "*/*"    
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - s3:*
         - sqs:*
       Resource: "*"
-    
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:PutObject
+      Resource:
+        - arn:aws:s3:::${self:custom.s3}/*
+        - arn:aws:s3:::${self:custom.s3}
 
+custom:
+  s3: montys3-thumbnail-creator
+  queue: https://sqs.{self:provider.region}.amazonaws.com/${aws:accountId}/ThumbnailQueue
+  pythonRequirements:
+    layer: true
+  region: us-east-1
 
 functions:
   imageProcessor:
     handler: lambda_handlers/processor.image_processor
+    environment:
+      s3: ${self:custom.s3}
     events:
       - s3:
-          bucket: montys3-thumbnail-creator
+          bucket: ${self:custom.s3}
           event: s3:ObjectCreated:*
           rules:
             - prefix: uploads/
+
+  uploadImage:
+    handler: lambda_handlers/uploader.image_uploader
+    environment:
+      queue: ${self:custom.queue}
+    role: UploadRole  
+    events:
+      - http:
+          path: upload/image
+          method: post         
 
 # you can add CloudFormation resource templates here
 resources:
@@ -35,3 +64,28 @@ resources:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: ThumbnailQueue
+
+    UploadRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: upload-policy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - s3:PutObject
+                    - s3:PutObjectAcl
+                  Resource:
+                      - "arn:aws:s3:::${self:custom.s3}/*"
+                      - "arn:aws:s3:::${self:custom.s3}"
+                

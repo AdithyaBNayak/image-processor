@@ -1,27 +1,61 @@
 import json
 import boto3
+import time
+import os
+import uuid
+# from PIL import Image
+from io import BytesIO
 from aws_lambda_powertools import Logger
 
 logger = Logger()
 
+s3 = boto3.client('s3')
+sqs = boto3.client('sqs')
+
+s3_name = os.getenv('s3')
+
+def generate_thumbnail(image_data):
+    '''
+       Function that creates the thubnail
+    '''
+    
+    # Need to add Thumbnail Creation Logic
+    return image_data
+
 def image_processor(event, context):
-    body = {
-        "message": "Go Serverless v1.0! Your function executed successfully!",
-        "input": event
-    }
-    logger.info(event)    
-    response = {
-        "statusCode": 200,
-        "body": json.dumps(body)
-    }
+    '''
+    Handler reponsible to get data from SQS, 
+        create the thumbnail and 
+        store it back in s3
+    '''
+    logger.info(event)
+    try:
+        sqs_record = event['Records'][0]
+        s3_obj = sqs_record['s3']
+        image_key = s3_obj['object']['key']
+        thumbnail_key = f"thumbnails/{int(time.time())}_{uuid.uuid4().hex}.jpg"
 
-    return response
+        logger.info(f"Image Key = {image_key}")
+        image_object = s3.get_object(
+            Bucket=s3_name,
+            Key=image_key
+        )
+        logger.info(image_object['Body'].read())
 
-    # Use this code if you don't use the http event with the LAMBDA-PROXY
-    # integration
-    """
-    return {
-        "message": "Go Serverless v1.0! Your function executed successfully!",
-        "event": event
-    }
-    """
+        thumbnail_data = generate_thumbnail(image_object['Body'].read())
+
+        s3.put_object(
+            Bucket=s3_name,
+            Key=thumbnail_key,
+            Body=thumbnail_data
+        )
+
+        return {
+            'statusCode': 200,
+            'body': json.dumps({'message': 'Thumbnail generated successfully.'})
+        }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to generate thumbnail.'})
+        }
