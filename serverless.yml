@@ -1,0 +1,38 @@
+service: monty-cloud-assessment
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: dev
+  region: us-east-1
+  layers:
+      -  arn:aws:lambda:us-east-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:40
+
+# you can add packaging information here
+#package:
+#  patterns:
+#    - '!exclude-me.py'
+#    - '!exclude-me-dir/**'
+#    - include-me.py
+#    - include-me-dir/**
+
+functions:
+  imageProcessor:
+    handler: lambda_handlers/processor.image_processor
+    events:
+      - s3:
+          bucket: montys3-thumbnail-creator
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: uploads/
+            # - suffix: .jpg
+
+# you can add CloudFormation resource templates here
+resources:
+  Resources:
+    ThumbnailQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ThumbnailQueue
