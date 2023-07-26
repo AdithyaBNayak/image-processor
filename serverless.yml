@@ -39,11 +39,6 @@ functions:
             Fn::GetAtt:
               - ThumbnailQueue
               - Arn
-      # - s3:
-      #     bucket: ${self:custom.s3}
-      #     event: s3:ObjectCreated:*
-      #     rules:
-      #       - prefix: uploads/
 
   uploadImage:
     handler: lambda_handlers/uploader.image_uploader
