@@ -1,3 +1,11 @@
+try:
+    import unzip_requirements
+    import req
+    from PIL import Image
+except:
+    pass
+
+from io import BytesIO   
 import json
 import boto3
 import os
@@ -8,14 +16,21 @@ logger = Logger()
 s3 = boto3.client('s3')
 sqs = boto3.client('sqs')
 s3_name = os.getenv('s3')
+THUMBNAIL_SIZE = (100,100)
 
 def generate_thumbnail(image_data):
     '''
        Function that creates the thumbnail
     '''
+    image = Image.open(BytesIO(image_data))
+    logger.info(image)
+    image.thumbnail(THUMBNAIL_SIZE)
     
-    # Need to add Thumbnail Creation Logic
-    return image_data
+    thumbnail_bytes_io = BytesIO()
+    logger.info(thumbnail_bytes_io)
+    image.save(thumbnail_bytes_io, format='JPEG')
+    
+    return thumbnail_bytes_io
 
 def image_processor(event, context):
     '''
@@ -36,14 +51,16 @@ def image_processor(event, context):
             Bucket=s3_name,
             Key=f"uploads/{image_key}"
         )
-        logger.info(image_object['Body'].read())
+        # logger.info(image_object['Body'].read())
+        logger.info(image_object['Body'])
 
         thumbnail_data = generate_thumbnail(image_object['Body'].read())
 
         s3.put_object(
             Bucket=s3_name,
             Key=thumbnail_key,
-            Body=thumbnail_data
+            Body=thumbnail_data.getvalue(),
+            ContentType='image/jpeg'
         )
 
         return {
