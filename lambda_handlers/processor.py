@@ -43,7 +43,7 @@ def image_processor(event, context):
         sqs_record = event['Records'][0]
         s3_obj = json.loads(sqs_record['body'])
         image_key = s3_obj['image_key']
-        thumbnail_key = f"thumbnails/{image_key}.jpg"
+        thumbnail_key = f"thumbnails/{image_key}"
 
         # Get the stored object from S3 Uploads
         logger.info(f"Image Key = {image_key}")
@@ -51,7 +51,14 @@ def image_processor(event, context):
             Bucket=s3_name,
             Key=f"uploads/{image_key}"
         )
-        # logger.info(image_object['Body'].read())
+    except: 
+        logger.info("Unable to fetch the image from S#")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Failed to generate thumbnail.'})
+        }   
+        
+    try:    
         logger.info(image_object['Body'])
 
         thumbnail_data = generate_thumbnail(image_object['Body'].read())
@@ -68,6 +75,7 @@ def image_processor(event, context):
             'body': json.dumps({'message': 'Thumbnail generated successfully.'})
         }
     except Exception as e:
+        logger.info("Thumbnail Creation Failed")
         return {
             'statusCode': 500,
             'body': json.dumps({'error': 'Failed to generate thumbnail.'})

@@ -71,13 +71,22 @@ functions:
           path: upload/imagetest
           method: post
 
-  downloader:
+  imageDownloader:
     handler: lambda_handlers/downloader.image_downloader
     environment:
       s3: ${self:custom.s3}
     events:
       - http:
-          path: download/{key}
+          path: download/image/{key}
+          method: get         
+
+  downloader:
+    handler: lambda_handlers/downloader.thumbnail_downloader
+    environment:
+      s3: ${self:custom.s3}
+    events:
+      - http:
+          path: download/thumbnail/{key}
           method: get                
 
 # you can add CloudFormation resource templates here

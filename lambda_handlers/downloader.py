@@ -8,9 +8,7 @@ logger = Logger()
 s3 = boto3.client('s3')
 s3_name = os.getenv('s3')
 
-
-def image_downloader(event,context):
-    logger.info(event)
+def downloader(event,img_type):
     try:
         body = event['pathParameters']
         image_key = body['key']
@@ -18,7 +16,7 @@ def image_downloader(event,context):
         
         image_object = s3.get_object(
                 Bucket=s3_name,
-                Key=f"thumbnails/{image_key}"
+                Key=f"{img_type}/{image_key}"
             )
         
         logger.info(image_object['Body'])
@@ -32,5 +30,14 @@ def image_downloader(event,context):
     except:
         return {
             'statusCode': 500,
-            'body': json.dumps({'error': 'Failed to Download the image.'})
-        }    
+            'body': json.dumps({'error': 'No Image Present with the given name.'})
+        }
+
+
+def thumbnail_downloader(event,context):
+    return downloader(event,'thumbnails')
+    
+    
+def image_downloader(event,context):
+    return downloader(event,'uploads')
+       
