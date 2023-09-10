@@ -2,6 +2,9 @@ service: monty-cloud-assessment
 
 frameworkVersion: '3'
 
+plugins:
+  - serverless-python-requirements
+
 provider:
   name: aws
   runtime: python3.9
@@ -27,6 +30,14 @@ custom:
   s3: montys3-thumbnail-creator
   queue: https://sqs.${self:provider.region}.amazonaws.com/${aws:accountId}/ThumbnailQueue
   region: us-east-1
+  pythonRequirements:
+    dockerizePip: true
+    zip: true
+
+# package: 
+#   include:
+#     - "Pillow"
+#     - "*.py"
 
 functions:
   imageProcessor:
@@ -48,7 +59,35 @@ functions:
     events:
       - http:
           path: upload/image
-          method: post         
+          method: post
+
+  uploadEncodedImage:
+    handler: lambda_handlers/encoded_uploader.image_uploader
+    environment:
+      queue: ${self:custom.queue}
+      s3: ${self:custom.s3}
+    events:
+      - http:
+          path: upload/imagetest
+          method: post
+
+  imageDownloader:
+    handler: lambda_handlers/downloader.image_downloader
+    environment:
+      s3: ${self:custom.s3}
+    events:
+      - http:
+          path: download/image/{key}
+          method: get         
+
+  downloader:
+    handler: lambda_handlers/downloader.thumbnail_downloader
+    environment:
+      s3: ${self:custom.s3}
+    events:
+      - http:
+          path: download/thumbnail/{key}
+          method: get                
 
 # you can add CloudFormation resource templates here
 resources:
