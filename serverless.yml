@@ -12,14 +12,12 @@ provider:
   region: us-east-1
   layers:
       -  arn:aws:lambda:us-east-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:40
-  apiGateway:
-    binaryMediaTypes:
-      - "*/*"    
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - sqs:*
-      Resource: "*"
+        - sqs:SendMessage
+      Resource: 
+        - arn:aws:sqs:${self:provider.region}:${aws:accountId}:ThumbnailQueue
     - Effect: Allow
       Action:
         - s3:GetObject
@@ -30,10 +28,16 @@ provider:
 
 custom:
   s3: montys3-thumbnail-creator
-  queue: https://sqs.{self:provider.region}.amazonaws.com/${aws:accountId}/ThumbnailQueue
-  pythonRequirements:
-    layer: true
+  queue: https://sqs.${self:provider.region}.amazonaws.com/${aws:accountId}/ThumbnailQueue
   region: us-east-1
+  pythonRequirements:
+    dockerizePip: true
+    zip: true
+
+# package: 
+#   include:
+#     - "Pillow"
+#     - "*.py"
 
 functions:
   imageProcessor:
@@ -41,21 +45,49 @@ functions:
     environment:
       s3: ${self:custom.s3}
     events:
-      - s3:
-          bucket: ${self:custom.s3}
-          event: s3:ObjectCreated:*
-          rules:
-            - prefix: uploads/
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - ThumbnailQueue
+              - Arn
 
   uploadImage:
     handler: lambda_handlers/uploader.image_uploader
     environment:
       queue: ${self:custom.queue}
-    role: UploadRole  
+      s3: ${self:custom.s3}
     events:
       - http:
           path: upload/image
-          method: post         
+          method: post
+
+  uploadEncodedImage:
+    handler: lambda_handlers/encoded_uploader.image_uploader
+    environment:
+      queue: ${self:custom.queue}
+      s3: ${self:custom.s3}
+    events:
+      - http:
+          path: upload/imagetest
+          method: post
+
+  imageDownloader:
+    handler: lambda_handlers/downloader.image_downloader
+    environment:
+      s3: ${self:custom.s3}
+    events:
+      - http:
+          path: download/image/{key}
+          method: get         
+
+  downloader:
+    handler: lambda_handlers/downloader.thumbnail_downloader
+    environment:
+      s3: ${self:custom.s3}
+    events:
+      - http:
+          path: download/thumbnail/{key}
+          method: get                
 
 # you can add CloudFormation resource templates here
 resources:
@@ -65,27 +97,7 @@ resources:
       Properties:
         QueueName: ThumbnailQueue
 
-    UploadRole:
-      Type: AWS::IAM::Role
+    MyS3Bucket:
+      Type: AWS::S3::Bucket
       Properties:
-        AssumeRolePolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - lambda.amazonaws.com
-              Action: sts:AssumeRole
-        Policies:
-          - PolicyName: upload-policy
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - s3:PutObject
-                    - s3:PutObjectAcl
-                  Resource:
-                      - "arn:aws:s3:::${self:custom.s3}/*"
-                      - "arn:aws:s3:::${self:custom.s3}"
-                
+        BucketName: ${self:custom.s3}                   
